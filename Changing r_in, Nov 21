@@ -1,0 +1,321 @@
+# -*- coding: utf-8 -*-
+"""
+Created on Mon Nov 13 23:29:40 2017
+
+@author: Rufus
+"""
+
+import sys,pylab,glob
+from pylab import *
+import ehtim as eh
+import ehtim.scattering as so
+import ehtim.plotting as pl
+
+sys.path.append("C:\Users\Rufus\Desktop\scattering screen")
+
+import numpy as np
+from scipy.ndimage import imread,variance
+import time
+import matplotlib.pyplot as plt
+plt.rcParams['image.origin'] = 'lower'
+
+# set up logger
+import logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger()
+
+import logging
+logging.basicConfig(level=logging.INFO) # for example
+
+
+## READ IN ASTRORAY (two sideband data)
+from astroray_io import read_astroray_images
+from astroray_io import write_image_EHTimagelib
+
+from vlbi import image2visibility
+
+from scipy.constants import c
+lambda_low = c/230.e9
+lambda_high = c/245.e9
+bandwidth = lambda_high-lambda_low # bandwidth
+
+
+#IMAGES = sys.argv[1:]
+
+#IMAGES = glob.glob("shotimag*.dat")
+# import ndimage, needed for variance
+
+# use vlbi.py stuff for visibilities etc
+
+#Everything above is written by Roman
+
+nx=152
+ny=152
+#pixel numbers
+
+#sm = so.ScatteringModel() #here you could specify the major and minor axis size, alpha, etc.
+
+ea_ker = None
+sqrtQ = None        
+
+#Initilization
+#number_of_realizations = 1
+number_of_r_in = 10
+data =  "SANE Disk"
+for i in range(number_of_r_in): #The loop running over different realizations of the power spectrum
+
+    if data == "SANE Disk":
+        IMAGES = glob.glob("D:\Scattering Screen\GRMHD SANE Quadrupole Disk\shotimag*.dat")
+    elif data == "MAD Disk":
+        IMAGES = glob.glob("D:\Scattering Screen\GRMHD MAD Disk\shotimag*.dat")
+    elif  data == "SANE Jet":
+        IMAGES = glob.glob("D:\Scattering Screen\GRMHD SANE Jet\shotimag*.dat")
+    elif  data == "MAD Jet":
+        IMAGES = glob.glob("D:\Scattering Screen\GRMHD MAD Jet\shotimag*.dat")
+    else:
+        IMAGES = glob.glob("C:\Users\Rufus\Desktop\\scattering screen\shotimag*.dat")
+        #print "NG"
+        #exit()
+
+
+    variance_vs_t = []
+    vis_scattered_t_avg_I = np.zeros_like ( image2visibility ( read_astroray_images(IMAGES[0])[:,:,0], zeropadding_factor=10 ) )
+    vis_scattered_t_avg_Q = np.zeros_like ( image2visibility ( read_astroray_images(IMAGES[0])[:,:,1], zeropadding_factor=10 ) )
+    vis_scattered_t_avg_U = np.zeros_like ( image2visibility ( read_astroray_images(IMAGES[0])[:,:,2], zeropadding_factor=10 ) )
+    vis_scattered_t_avg_V = np.zeros_like ( image2visibility ( read_astroray_images(IMAGES[0])[:,:,3], zeropadding_factor=10 ) )
+    
+    vis_t_avg_I = np.zeros_like ( image2visibility ( read_astroray_images(IMAGES[0])[:,:,0], zeropadding_factor=10 ) )
+    vis_t_avg_Q = np.zeros_like ( image2visibility ( read_astroray_images(IMAGES[0])[:,:,1], zeropadding_factor=10 ) )
+    vis_t_avg_U = np.zeros_like ( image2visibility ( read_astroray_images(IMAGES[0])[:,:,2], zeropadding_factor=10 ) )
+    vis_t_avg_V = np.zeros_like ( image2visibility ( read_astroray_images(IMAGES[0])[:,:,3], zeropadding_factor=10 ) )
+    
+    image_avg_I = np.zeros_like ( read_astroray_images(IMAGES[0])[:,:,0] )
+    image_avg_Q = np.zeros_like ( read_astroray_images(IMAGES[0])[:,:,1] )
+    image_avg_U = np.zeros_like ( read_astroray_images(IMAGES[0])[:,:,2] )
+    image_avg_V = np.zeros_like ( read_astroray_images(IMAGES[0])[:,:,3] )
+         
+    image_avg = np.zeros_like ( read_astroray_images(IMAGES[0])[:,:,0] )
+    I_scattered_avg = np.zeros_like ( read_astroray_images(IMAGES[0])[:,:,0] )
+    Q_scattered_avg = np.zeros_like ( read_astroray_images(IMAGES[0])[:,:,1] )
+    U_scattered_avg = np.zeros_like ( read_astroray_images(IMAGES[0])[:,:,2] )
+    V_scattered_avg = np.zeros_like ( read_astroray_images(IMAGES[0])[:,:,3] )
+
+    vis_t_avg_L1 = np.zeros_like ( image2visibility ( read_astroray_images(IMAGES[0])[:,:,0], zeropadding_factor=10 ) )
+    vis_t_avg_L2 = np.zeros_like ( image2visibility ( read_astroray_images(IMAGES[0])[:,:,0], zeropadding_factor=10 ) )
+    vis_scattered_t_avg_L1 = np.zeros_like ( image2visibility ( read_astroray_images(IMAGES[0])[:,:,0], zeropadding_factor=10 ) )
+    vis_scattered_t_avg_L2 = np.zeros_like ( image2visibility ( read_astroray_images(IMAGES[0])[:,:,0], zeropadding_factor=10 ) )      
+    
+    for SNAPSHOT in IMAGES:
+        print SNAPSHOT
+        #print vis_t_avg_I
+        image, header = read_astroray_images(SNAPSHOT,return_header=True)
+        image_avg += image[:,:,0]/np.size(IMAGES)
+        
+        write_image_EHTimagelib(image,'astroray_230GHz_IQUV.txt',nu=230.,dx=1.5e-6,dy=1.5e-6)
+        write_image_EHTimagelib(image,'astroray_230GHz_I.txt',nu=230.,dx=1.5e-6,dy=1.5e-6,WRITE_STOKES="I")
+        write_image_EHTimagelib(image,'astroray_230GHz_Q.txt',nu=230.,dx=1.5e-6,dy=1.5e-6,WRITE_STOKES="Q")
+        write_image_EHTimagelib(image,'astroray_230GHz_U.txt',nu=230.,dx=1.5e-6,dy=1.5e-6,WRITE_STOKES="U")
+        write_image_EHTimagelib(image,'astroray_230GHz_V.txt',nu=230.,dx=1.5e-6,dy=1.5e-6,WRITE_STOKES="V")
+        eht_image_obj = eh.image.load_txt('./astroray_230GHz_IQUV.txt')
+        image_size = header[4] # in M
+
+
+        sm = so.ScatteringModel()
+        
+        if ea_ker == None:
+            ea_ker = sm.Ensemble_Average_Kernel(eht_image_obj)
+            print "made kernal"
+            sqrtQ  = sm.sqrtQ_Matrix(eht_image_obj)
+                
+        screen = so.MakeEpsilonScreen(eht_image_obj.xdim, eht_image_obj.ydim, rngseed=None)
+        print "Before Scattering"
+        I_scattered_obj = sm.Scatter(eht_image_obj,screen,ea_ker=ea_ker,sqrtQ=sqrtQ)
+        print "After Scattering"
+        I_array = I_scattered_obj.imvec.reshape(I_scattered_obj.ydim,I_scattered_obj.xdim)
+        Q_array = I_scattered_obj.qvec.reshape(I_scattered_obj.ydim,I_scattered_obj.xdim)
+        U_array = I_scattered_obj.uvec.reshape(I_scattered_obj.ydim,I_scattered_obj.xdim)
+        V_array = I_scattered_obj.vvec.reshape(I_scattered_obj.ydim,I_scattered_obj.xdim)
+
+        visibility_I, u, v = image2visibility(image[:,:,0],zeropadding_factor=10,return_uv=True,image_size_inM_x=image_size,image_size_inM_y=image_size)#change size of image_size if we squeeze the size of image
+        visibility_Q = image2visibility(image[:,:,1],zeropadding_factor=10)
+        visibility_U = image2visibility(image[:,:,2],zeropadding_factor=10)
+        visibility_V = image2visibility(image[:,:,3],zeropadding_factor=10)
+                
+        visibility_scattered_I = image2visibility(I_array, zeropadding_factor=10)
+        visibility_scattered_Q = image2visibility(Q_array, zeropadding_factor=10)
+        visibility_scattered_U = image2visibility(U_array, zeropadding_factor=10)
+        visibility_scattered_V = image2visibility(V_array, zeropadding_factor=10)
+                
+        vis_t_avg_I += abs(visibility_I)**2/np.size(IMAGES)
+        vis_t_avg_Q += abs(visibility_Q)**2/np.size(IMAGES)
+        vis_t_avg_U += abs(visibility_U)**2/np.size(IMAGES)
+        vis_t_avg_V += abs(visibility_V)**2/np.size(IMAGES)
+        
+        vis_scattered_t_avg_I += abs(visibility_scattered_I)**2/np.size(IMAGES)
+        vis_scattered_t_avg_Q += abs(visibility_scattered_Q)**2/np.size(IMAGES)
+        vis_scattered_t_avg_U += abs(visibility_scattered_U)**2/np.size(IMAGES)
+        vis_scattered_t_avg_V += abs(visibility_scattered_V)**2/np.size(IMAGES)
+        
+        
+        if data == "SANE Disk":
+            #Below is for SANE disk:
+            vis_t_avg_L1 += abs(-0.76146218491619755* visibility_Q+0.64820933419895355*visibility_U)**2/np.size(IMAGES)
+            vis_scattered_t_avg_L1 += abs(-0.76146218491619755*visibility_scattered_Q +0.64820933419895355*visibility_scattered_U)**2/np.size(IMAGES)
+            vis_t_avg_L2 += abs(0.19895705909058378*visibility_Q+0.23371813537186414*visibility_U-0.95173101338367916*visibility_V)**2/np.size(IMAGES)
+            vis_scattered_t_avg_L2 += abs(0.19895705909058378*visibility_scattered_Q+0.23371813537186414*visibility_scattered_U-0.95173101338367916*visibility_scattered_V)**2/np.size(IMAGES)
+        
+        if data == "MAD Disk":
+            #Below is for MAD disk:
+            vis_t_avg_L1 += abs(-0.71139991643111* visibility_Q+0.70278742084773371*visibility_U)**2/np.size(IMAGES)
+            vis_scattered_t_avg_L1 += abs(-0.71139991643111*visibility_scattered_Q +0.70278742084773371*visibility_scattered_U)**2/np.size(IMAGES)
+            vis_t_avg_L2 += abs(0.12047451053598152*visibility_Q+0.12195089750467396*visibility_U-0.98519737662507001*visibility_V)**2/np.size(IMAGES)
+            vis_scattered_t_avg_L2 += abs(0.12047451053598152*visibility_scattered_Q+0.12195089750467396*visibility_scattered_U-0.98519737662507001*visibility_scattered_V)**2/np.size(IMAGES)
+        
+    if i==0:
+        np.save("D:\Scattering Screen\New screen\SANE Disk\Comparison for different r_in\\10^4\\vis_t_avg_I",vis_t_avg_I)
+        np.save("D:\Scattering Screen\New screen\SANE Disk\Comparison for different r_in\\10^4\\vis_t_avg_Q",vis_t_avg_Q)
+        np.save("D:\Scattering Screen\New screen\SANE Disk\Comparison for different r_in\\10^4\\vis_t_avg_U",vis_t_avg_U)
+        np.save("D:\Scattering Screen\New screen\SANE Disk\Comparison for different r_in\\10^4\\vis_t_avg_V",vis_t_avg_V)
+        np.save("D:\Scattering Screen\New screen\SANE Disk\Comparison for different r_in\\10^4\\vis_scattered_t_avg_I",vis_scattered_t_avg_I)
+        np.save("D:\Scattering Screen\New screen\SANE Disk\Comparison for different r_in\\10^4\\vis_scattered_t_avg_Q",vis_scattered_t_avg_Q)
+        np.save("D:\Scattering Screen\New screen\SANE Disk\Comparison for different r_in\\10^4\\vis_scattered_t_avg_U",vis_scattered_t_avg_U)
+        np.save("D:\Scattering Screen\New screen\SANE Disk\Comparison for different r_in\\10^4\\vis_scattered_t_avg_V",vis_scattered_t_avg_V)
+        np.save("D:\Scattering Screen\New screen\SANE Disk\Comparison for different r_in\\10^4\\vis_t_avg_L1",vis_t_avg_L1)
+        np.save("D:\Scattering Screen\New screen\SANE Disk\Comparison for different r_in\\10^4\\vis_t_avg_L2",vis_t_avg_L2)
+        np.save("D:\Scattering Screen\New screen\SANE Disk\Comparison for different r_in\\10^4\\vis_scattered_t_avg_L1",vis_scattered_t_avg_L1)
+        np.save("D:\Scattering Screen\New screen\SANE Disk\Comparison for different r_in\\10^4\\vis_scattered_t_avg_L2",vis_scattered_t_avg_L2)
+    
+    if i==1:
+        np.save("D:\Scattering Screen\New screen\SANE Disk\Comparison for different r_in\\10^5\\vis_t_avg_I",vis_t_avg_I)
+        np.save("D:\Scattering Screen\New screen\SANE Disk\Comparison for different r_in\\10^5\\vis_t_avg_Q",vis_t_avg_Q)
+        np.save("D:\Scattering Screen\New screen\SANE Disk\Comparison for different r_in\\10^5\\vis_t_avg_U",vis_t_avg_U)
+        np.save("D:\Scattering Screen\New screen\SANE Disk\Comparison for different r_in\\10^5\\vis_t_avg_V",vis_t_avg_V)
+        np.save("D:\Scattering Screen\New screen\SANE Disk\Comparison for different r_in\\10^5\\vis_scattered_t_avg_I",vis_scattered_t_avg_I)
+        np.save("D:\Scattering Screen\New screen\SANE Disk\Comparison for different r_in\\10^5\\vis_scattered_t_avg_Q",vis_scattered_t_avg_Q)
+        np.save("D:\Scattering Screen\New screen\SANE Disk\Comparison for different r_in\\10^5\\vis_scattered_t_avg_U",vis_scattered_t_avg_U)
+        np.save("D:\Scattering Screen\New screen\SANE Disk\Comparison for different r_in\\10^5\\vis_scattered_t_avg_V",vis_scattered_t_avg_V)
+        np.save("D:\Scattering Screen\New screen\SANE Disk\Comparison for different r_in\\10^5\\vis_t_avg_L1",vis_t_avg_L1)
+        np.save("D:\Scattering Screen\New screen\SANE Disk\Comparison for different r_in\\10^5\\vis_t_avg_L2",vis_t_avg_L2)
+        np.save("D:\Scattering Screen\New screen\SANE Disk\Comparison for different r_in\\10^5\\vis_scattered_t_avg_L1",vis_scattered_t_avg_L1)
+        np.save("D:\Scattering Screen\New screen\SANE Disk\Comparison for different r_in\\10^5\\vis_scattered_t_avg_L2",vis_scattered_t_avg_L2)
+
+    if i==2:
+        np.save("D:\Scattering Screen\New screen\SANE Disk\Comparison for different r_in\\10^6\\vis_t_avg_I",vis_t_avg_I)
+        np.save("D:\Scattering Screen\New screen\SANE Disk\Comparison for different r_in\\10^6\\vis_t_avg_Q",vis_t_avg_Q)
+        np.save("D:\Scattering Screen\New screen\SANE Disk\Comparison for different r_in\\10^6\\vis_t_avg_U",vis_t_avg_U)
+        np.save("D:\Scattering Screen\New screen\SANE Disk\Comparison for different r_in\\10^6\\vis_t_avg_V",vis_t_avg_V)
+        np.save("D:\Scattering Screen\New screen\SANE Disk\Comparison for different r_in\\10^6\\vis_scattered_t_avg_I",vis_scattered_t_avg_I)
+        np.save("D:\Scattering Screen\New screen\SANE Disk\Comparison for different r_in\\10^6\\vis_scattered_t_avg_Q",vis_scattered_t_avg_Q)
+        np.save("D:\Scattering Screen\New screen\SANE Disk\Comparison for different r_in\\10^6\\vis_scattered_t_avg_U",vis_scattered_t_avg_U)
+        np.save("D:\Scattering Screen\New screen\SANE Disk\Comparison for different r_in\\10^6\\vis_scattered_t_avg_V",vis_scattered_t_avg_V)
+        np.save("D:\Scattering Screen\New screen\SANE Disk\Comparison for different r_in\\10^6\\vis_t_avg_L1",vis_t_avg_L1)
+        np.save("D:\Scattering Screen\New screen\SANE Disk\Comparison for different r_in\\10^6\\vis_t_avg_L2",vis_t_avg_L2)
+        np.save("D:\Scattering Screen\New screen\SANE Disk\Comparison for different r_in\\10^6\\vis_scattered_t_avg_L1",vis_scattered_t_avg_L1)
+        np.save("D:\Scattering Screen\New screen\SANE Disk\Comparison for different r_in\\10^6\\vis_scattered_t_avg_L2",vis_scattered_t_avg_L2)
+    
+#    plt.semilogy(np.sort(u),vis_scattered_t_avg_Q[np.size(u)/2,:]/vis_scattered_t_avg_I[np.size(u)/2,:], label= ["scattered"],  linestyle='--')
+#    plt.semilogy(np.sort(u),vis_t_avg_Q[np.size(u)/2,:]/vis_t_avg_I[np.size(u)/2,:], label=["intrinsic"])
+#    plt.xlabel("$u$ $(G\lambda)$",fontsize=24)
+#    plt.ylabel("$<V_{Q}^2>$/$<V_{I}^2>$",fontsize=24)
+#    plt.axis((0,15,1e-6,1e2))
+#    plt.tick_params(axis='both', labelsize=20)
+#    plt.legend(fontsize=24) 
+#    plt.legend()
+    
+    if i==3:
+        np.save("D:\Scattering Screen\New screen\SANE Disk\Comparison for different r_in\\10^7\\vis_t_avg_I",vis_t_avg_I)
+        np.save("D:\Scattering Screen\New screen\SANE Disk\Comparison for different r_in\\10^7\\vis_t_avg_Q",vis_t_avg_Q)
+        np.save("D:\Scattering Screen\New screen\SANE Disk\Comparison for different r_in\\10^7\\vis_t_avg_U",vis_t_avg_U)
+        np.save("D:\Scattering Screen\New screen\SANE Disk\Comparison for different r_in\\10^7\\vis_t_avg_V",vis_t_avg_V)
+        np.save("D:\Scattering Screen\New screen\SANE Disk\Comparison for different r_in\\10^7\\vis_scattered_t_avg_I",vis_scattered_t_avg_I)
+        np.save("D:\Scattering Screen\New screen\SANE Disk\Comparison for different r_in\\10^7\\vis_scattered_t_avg_Q",vis_scattered_t_avg_Q)
+        np.save("D:\Scattering Screen\New screen\SANE Disk\Comparison for different r_in\\10^7\\vis_scattered_t_avg_U",vis_scattered_t_avg_U)
+        np.save("D:\Scattering Screen\New screen\SANE Disk\Comparison for different r_in\\10^7\\vis_scattered_t_avg_V",vis_scattered_t_avg_V)
+        np.save("D:\Scattering Screen\New screen\SANE Disk\Comparison for different r_in\\10^7\\vis_t_avg_L1",vis_t_avg_L1)
+        np.save("D:\Scattering Screen\New screen\SANE Disk\Comparison for different r_in\\10^7\\vis_t_avg_L2",vis_t_avg_L2)
+        np.save("D:\Scattering Screen\New screen\SANE Disk\Comparison for different r_in\\10^7\\vis_scattered_t_avg_L1",vis_scattered_t_avg_L1)
+        np.save("D:\Scattering Screen\New screen\SANE Disk\Comparison for different r_in\\10^7\\vis_scattered_t_avg_L2",vis_scattered_t_avg_L2)
+            
+    if i ==4:
+        np.save("D:\Scattering Screen\New screen\SANE Disk\Comparison for different r_in\\10^8\\vis_t_avg_I",vis_t_avg_I)
+        np.save("D:\Scattering Screen\New screen\SANE Disk\Comparison for different r_in\\10^8\\vis_t_avg_Q",vis_t_avg_Q)
+        np.save("D:\Scattering Screen\New screen\SANE Disk\Comparison for different r_in\\10^8\\vis_t_avg_U",vis_t_avg_U)
+        np.save("D:\Scattering Screen\New screen\SANE Disk\Comparison for different r_in\\10^8\\vis_t_avg_V",vis_t_avg_V)
+        np.save("D:\Scattering Screen\New screen\SANE Disk\Comparison for different r_in\\10^8\\vis_scattered_t_avg_I",vis_scattered_t_avg_I)
+        np.save("D:\Scattering Screen\New screen\SANE Disk\Comparison for different r_in\\10^8\\vis_scattered_t_avg_Q",vis_scattered_t_avg_Q)
+        np.save("D:\Scattering Screen\New screen\SANE Disk\Comparison for different r_in\\10^8\\vis_scattered_t_avg_U",vis_scattered_t_avg_U)
+        np.save("D:\Scattering Screen\New screen\SANE Disk\Comparison for different r_in\\10^8\\vis_scattered_t_avg_V",vis_scattered_t_avg_V)
+        np.save("D:\Scattering Screen\New screen\SANE Disk\Comparison for different r_in\\10^8\\vis_t_avg_L1",vis_t_avg_L1)
+        np.save("D:\Scattering Screen\New screen\SANE Disk\Comparison for different r_in\\10^8\\vis_t_avg_L2",vis_t_avg_L2)
+        np.save("D:\Scattering Screen\New screen\SANE Disk\Comparison for different r_in\\10^8\\vis_scattered_t_avg_L1",vis_scattered_t_avg_L1)
+        np.save("D:\Scattering Screen\New screen\SANE Disk\Comparison for different r_in\\10^8\\vis_scattered_t_avg_L2",vis_scattered_t_avg_L2)
+            
+    if i==5:
+        np.save("D:\Scattering Screen\New screen\SANE Disk\Comparison for different r_in\\10^9\\vis_t_avg_I",vis_t_avg_I)
+        np.save("D:\Scattering Screen\New screen\SANE Disk\Comparison for different r_in\\10^9\\vis_t_avg_Q",vis_t_avg_Q)
+        np.save("D:\Scattering Screen\New screen\SANE Disk\Comparison for different r_in\\10^9\\vis_t_avg_U",vis_t_avg_U)
+        np.save("D:\Scattering Screen\New screen\SANE Disk\Comparison for different r_in\\10^9\\vis_t_avg_V",vis_t_avg_V)
+        np.save("D:\Scattering Screen\New screen\SANE Disk\Comparison for different r_in\\10^9\\vis_scattered_t_avg_I",vis_scattered_t_avg_I)
+        np.save("D:\Scattering Screen\New screen\SANE Disk\Comparison for different r_in\\10^9\\vis_scattered_t_avg_Q",vis_scattered_t_avg_Q)
+        np.save("D:\Scattering Screen\New screen\SANE Disk\Comparison for different r_in\\10^9\\vis_scattered_t_avg_U",vis_scattered_t_avg_U)
+        np.save("D:\Scattering Screen\New screen\SANE Disk\Comparison for different r_in\\10^9\\vis_scattered_t_avg_V",vis_scattered_t_avg_V)
+        np.save("D:\Scattering Screen\New screen\SANE Disk\Comparison for different r_in\\10^9\\vis_t_avg_L1",vis_t_avg_L1)
+        np.save("D:\Scattering Screen\New screen\SANE Disk\Comparison for different r_in\\10^9\\vis_t_avg_L2",vis_t_avg_L2)
+        np.save("D:\Scattering Screen\New screen\SANE Disk\Comparison for different r_in\\10^9\\vis_scattered_t_avg_L1",vis_scattered_t_avg_L1)
+        np.save("D:\Scattering Screen\New screen\SANE Disk\Comparison for different r_in\\10^9\\vis_scattered_t_avg_L2",vis_scattered_t_avg_L2)
+        
+    if i==6:
+        np.save("D:\Scattering Screen\New screen\SANE Disk\Comparison for different r_in\\10^10\\vis_t_avg_I",vis_t_avg_I)
+        np.save("D:\Scattering Screen\New screen\SANE Disk\Comparison for different r_in\\10^10\\vis_t_avg_Q",vis_t_avg_Q)
+        np.save("D:\Scattering Screen\New screen\SANE Disk\Comparison for different r_in\\10^10\\vis_t_avg_U",vis_t_avg_U)
+        np.save("D:\Scattering Screen\New screen\SANE Disk\Comparison for different r_in\\10^10\\vis_t_avg_V",vis_t_avg_V)
+        np.save("D:\Scattering Screen\New screen\SANE Disk\Comparison for different r_in\\10^10\\vis_scattered_t_avg_I",vis_scattered_t_avg_I)
+        np.save("D:\Scattering Screen\New screen\SANE Disk\Comparison for different r_in\\10^10\\vis_scattered_t_avg_Q",vis_scattered_t_avg_Q)
+        np.save("D:\Scattering Screen\New screen\SANE Disk\Comparison for different r_in\\10^10\\vis_scattered_t_avg_U",vis_scattered_t_avg_U)
+        np.save("D:\Scattering Screen\New screen\SANE Disk\Comparison for different r_in\\10^10\\vis_scattered_t_avg_V",vis_scattered_t_avg_V)
+        np.save("D:\Scattering Screen\New screen\SANE Disk\Comparison for different r_in\\10^10\\vis_t_avg_L1",vis_t_avg_L1)
+        np.save("D:\Scattering Screen\New screen\SANE Disk\Comparison for different r_in\\10^10\\vis_t_avg_L2",vis_t_avg_L2)
+        np.save("D:\Scattering Screen\New screen\SANE Disk\Comparison for different r_in\\10^10\\vis_scattered_t_avg_L1",vis_scattered_t_avg_L1)
+        np.save("D:\Scattering Screen\New screen\SANE Disk\Comparison for different r_in\\10^10\\vis_scattered_t_avg_L2",vis_scattered_t_avg_L2)
+            
+    if i==7:
+        np.save("D:\Scattering Screen\New screen\SANE Disk\Comparison for different r_in\\10^11\\vis_t_avg_I",vis_t_avg_I)
+        np.save("D:\Scattering Screen\New screen\SANE Disk\Comparison for different r_in\\10^11\\vis_t_avg_Q",vis_t_avg_Q)
+        np.save("D:\Scattering Screen\New screen\SANE Disk\Comparison for different r_in\\10^11\\vis_t_avg_U",vis_t_avg_U)
+        np.save("D:\Scattering Screen\New screen\SANE Disk\Comparison for different r_in\\10^11\\vis_t_avg_V",vis_t_avg_V)
+        np.save("D:\Scattering Screen\New screen\SANE Disk\Comparison for different r_in\\10^11\\vis_scattered_t_avg_I",vis_scattered_t_avg_I)
+        np.save("D:\Scattering Screen\New screen\SANE Disk\Comparison for different r_in\\10^11\\vis_scattered_t_avg_Q",vis_scattered_t_avg_Q)
+        np.save("D:\Scattering Screen\New screen\SANE Disk\Comparison for different r_in\\10^11\\vis_scattered_t_avg_U",vis_scattered_t_avg_U)
+        np.save("D:\Scattering Screen\New screen\SANE Disk\Comparison for different r_in\\10^11\\vis_scattered_t_avg_V",vis_scattered_t_avg_V)
+        np.save("D:\Scattering Screen\New screen\SANE Disk\Comparison for different r_in\\10^11\\vis_t_avg_L1",vis_t_avg_L1)
+        np.save("D:\Scattering Screen\New screen\SANE Disk\Comparison for different r_in\\10^11\\vis_t_avg_L2",vis_t_avg_L2)
+        np.save("D:\Scattering Screen\New screen\SANE Disk\Comparison for different r_in\\10^11\\vis_scattered_t_avg_L1",vis_scattered_t_avg_L1)
+        np.save("D:\Scattering Screen\New screen\SANE Disk\Comparison for different r_in\\10^11\\vis_scattered_t_avg_L2",vis_scattered_t_avg_L2)
+            
+    if i==8:
+        np.save("D:\Scattering Screen\New screen\SANE Disk\Comparison for different r_in\\10^12\\vis_t_avg_I",vis_t_avg_I)
+        np.save("D:\Scattering Screen\New screen\SANE Disk\Comparison for different r_in\\10^12\\vis_t_avg_Q",vis_t_avg_Q)
+        np.save("D:\Scattering Screen\New screen\SANE Disk\Comparison for different r_in\\10^12\\vis_t_avg_U",vis_t_avg_U)
+        np.save("D:\Scattering Screen\New screen\SANE Disk\Comparison for different r_in\\10^12\\vis_t_avg_V",vis_t_avg_V)
+        np.save("D:\Scattering Screen\New screen\SANE Disk\Comparison for different r_in\\10^12\\vis_scattered_t_avg_I",vis_scattered_t_avg_I)
+        np.save("D:\Scattering Screen\New screen\SANE Disk\Comparison for different r_in\\10^12\\vis_scattered_t_avg_Q",vis_scattered_t_avg_Q)
+        np.save("D:\Scattering Screen\New screen\SANE Disk\Comparison for different r_in\\10^12\\vis_scattered_t_avg_U",vis_scattered_t_avg_U)
+        np.save("D:\Scattering Screen\New screen\SANE Disk\Comparison for different r_in\\10^12\\vis_scattered_t_avg_V",vis_scattered_t_avg_V)
+        np.save("D:\Scattering Screen\New screen\SANE Disk\Comparison for different r_in\\10^12\\vis_t_avg_L1",vis_t_avg_L1)
+        np.save("D:\Scattering Screen\New screen\SANE Disk\Comparison for different r_in\\10^12\\vis_t_avg_L2",vis_t_avg_L2)
+        np.save("D:\Scattering Screen\New screen\SANE Disk\Comparison for different r_in\\10^12\\vis_scattered_t_avg_L1",vis_scattered_t_avg_L1)
+        np.save("D:\Scattering Screen\New screen\SANE Disk\Comparison for different r_in\\10^12\\vis_scattered_t_avg_L2",vis_scattered_t_avg_L2)
+            
+    if i==9:
+        np.save("D:\Scattering Screen\New screen\SANE Disk\Comparison for different r_in\\10^13\\vis_t_avg_I",vis_t_avg_I)
+        np.save("D:\Scattering Screen\New screen\SANE Disk\Comparison for different r_in\\10^13\\vis_t_avg_Q",vis_t_avg_Q)
+        np.save("D:\Scattering Screen\New screen\SANE Disk\Comparison for different r_in\\10^13\\vis_t_avg_U",vis_t_avg_U)
+        np.save("D:\Scattering Screen\New screen\SANE Disk\Comparison for different r_in\\10^13\\vis_t_avg_V",vis_t_avg_V)
+        np.save("D:\Scattering Screen\New screen\SANE Disk\Comparison for different r_in\\10^13\\vis_scattered_t_avg_I",vis_scattered_t_avg_I)
+        np.save("D:\Scattering Screen\New screen\SANE Disk\Comparison for different r_in\\10^13\\vis_scattered_t_avg_Q",vis_scattered_t_avg_Q)
+        np.save("D:\Scattering Screen\New screen\SANE Disk\Comparison for different r_in\\10^13\\vis_scattered_t_avg_U",vis_scattered_t_avg_U)
+        np.save("D:\Scattering Screen\New screen\SANE Disk\Comparison for different r_in\\10^13\\vis_scattered_t_avg_V",vis_scattered_t_avg_V)
+        np.save("D:\Scattering Screen\New screen\SANE Disk\Comparison for different r_in\\10^13\\vis_t_avg_L1",vis_t_avg_L1)
+        np.save("D:\Scattering Screen\New screen\SANE Disk\Comparison for different r_in\\10^13\\vis_t_avg_L2",vis_t_avg_L2)
+        np.save("D:\Scattering Screen\New screen\SANE Disk\Comparison for different r_in\\10^13\\vis_scattered_t_avg_L1",vis_scattered_t_avg_L1)
+        np.save("D:\Scattering Screen\New screen\SANE Disk\Comparison for different r_in\\10^13\\vis_scattered_t_avg_L2",vis_scattered_t_avg_L2)
